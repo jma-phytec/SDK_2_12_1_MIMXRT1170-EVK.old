@@ -13,11 +13,14 @@
 
 #include "lwip/opt.h"
 
-#if LWIP_IPV4 && LWIP_TCP && LWIP_UDP
+#if LWIP_IPV4 && LWIP_TCP && LWIP_UDP && LWIP_DHCP
 
 #include "lwip/apps/lwiperf.h"
 #include "lwip/timeouts.h"
+#include "lwip/ip_addr.h"
 #include "lwip/init.h"
+#include "lwip/dhcp.h"
+#include "lwip/prot/dhcp.h"
 #include "netif/ethernet.h"
 #include "enet_ethernetif.h"
 
@@ -178,6 +181,77 @@ void BOARD_ENETFlexibleConfigure(enet_config_t *config)
 void SysTick_Handler(void)
 {
     time_isr();
+}
+
+/*!
+ * @brief Prints DHCP status of the interface when it has changed from last status.
+ *
+ * @param netif network interface structure
+ */
+static u8_t print_dhcp_state(struct netif *netif)
+{
+    static u8_t dhcp_last_state = DHCP_STATE_OFF;
+    struct dhcp *dhcp           = netif_dhcp_data(netif);
+
+    if (dhcp == NULL)
+    {
+        dhcp_last_state = DHCP_STATE_OFF;
+    }
+    else if (dhcp_last_state != dhcp->state)
+    {
+        dhcp_last_state = dhcp->state;
+
+        PRINTF(" DHCP state       : ");
+        switch (dhcp_last_state)
+        {
+            case DHCP_STATE_OFF:
+                PRINTF("OFF");
+                break;
+            case DHCP_STATE_REQUESTING:
+                PRINTF("REQUESTING");
+                break;
+            case DHCP_STATE_INIT:
+                PRINTF("INIT");
+                break;
+            case DHCP_STATE_REBOOTING:
+                PRINTF("REBOOTING");
+                break;
+            case DHCP_STATE_REBINDING:
+                PRINTF("REBINDING");
+                break;
+            case DHCP_STATE_RENEWING:
+                PRINTF("RENEWING");
+                break;
+            case DHCP_STATE_SELECTING:
+                PRINTF("SELECTING");
+                break;
+            case DHCP_STATE_INFORMING:
+                PRINTF("INFORMING");
+                break;
+            case DHCP_STATE_CHECKING:
+                PRINTF("CHECKING");
+                break;
+            case DHCP_STATE_BOUND:
+                PRINTF("BOUND");
+                break;
+            case DHCP_STATE_BACKING_OFF:
+                PRINTF("BACKING_OFF");
+                break;
+            default:
+                PRINTF("%u", dhcp_last_state);
+                assert(0);
+                break;
+        }
+        PRINTF("\r\n");
+
+        if (dhcp_last_state == DHCP_STATE_BOUND)
+        {
+            PRINTF("\r\n IPv4 Address     : %s\r\n", ipaddr_ntoa(&netif->ip_addr));
+            PRINTF(" IPv4 Subnet mask : %s\r\n", ipaddr_ntoa(&netif->netmask));
+            PRINTF(" IPv4 Gateway     : %s\r\n\r\n", ipaddr_ntoa(&netif->gw));
+        }
+    }
+    return dhcp_last_state;
 }
 
 /* Report state => string */
@@ -367,6 +441,7 @@ int main(void)
         .macAddress = configMAC_ADDR,
 #endif
     };
+    u8_t dhcp_state = DHCP_STATE_OFF;
 
     gpio_pin_config_t gpio_config = {kGPIO_DigitalOutput, 0, kGPIO_NoIntmode};
 
@@ -411,15 +486,33 @@ int main(void)
     (void)SILICONID_ConvertToMacAddr(&enet_config.macAddress);
 #endif
 
-    IP4_ADDR(&netif_ipaddr, configIP_ADDR0, configIP_ADDR1, configIP_ADDR2, configIP_ADDR3);
-    IP4_ADDR(&netif_netmask, configNET_MASK0, configNET_MASK1, configNET_MASK2, configNET_MASK3);
-    IP4_ADDR(&netif_gw, configGW_ADDR0, configGW_ADDR1, configGW_ADDR2, configGW_ADDR3);
+    IP4_ADDR(&netif_ipaddr, 0U, 0U, 0U, 0U);
+    IP4_ADDR(&netif_netmask, 0U, 0U, 0U, 0U);
+    IP4_ADDR(&netif_gw, 0U, 0U, 0U, 0U);
 
     lwip_init();
 
     netif_add(&netif, &netif_ipaddr, &netif_netmask, &netif_gw, &enet_config, EXAMPLE_NETIF_INIT_FN, ethernet_input);
     netif_set_default(&netif);
     netif_set_up(&netif);
+
+    dhcp_start(&netif);
+
+    while (dhcp_state!=DHCP_STATE_BOUND)
+    {
+        /* Poll the driver, get any outstanding frames */
+        ethernetif_input(&netif);
+
+        /* Handle all system timeouts for all core protocols */
+        sys_check_timeouts();
+
+        /* Print DHCP progress */
+        dhcp_state = print_dhcp_state(&netif);
+    }
+
+    netif_ipaddr = netif.ip_addr;
+    netif_netmask = netif.netmask;
+    netif_gw = netif.gw;
 
     PRINTF("\r\n************************************************\r\n");
     PRINTF(" IPERF example\r\n");
