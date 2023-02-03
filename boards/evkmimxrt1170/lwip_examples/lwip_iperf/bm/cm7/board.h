@@ -180,7 +180,7 @@
 /* Below comment is for test script to easily define which port to be used, please don't delete. */
 /* @TEST_ANCHOR */
 #ifndef BOARD_NETWORK_USE_100M_ENET_PORT
-#define BOARD_NETWORK_USE_100M_ENET_PORT (1U)
+#define BOARD_NETWORK_USE_100M_ENET_PORT (0U)
 #endif
 
 #if defined(__cplusplus)

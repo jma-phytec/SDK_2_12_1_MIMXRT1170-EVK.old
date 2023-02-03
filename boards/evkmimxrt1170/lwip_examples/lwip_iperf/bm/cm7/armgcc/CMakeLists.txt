@@ -52,6 +52,7 @@ set(CMAKE_MODULE_PATH
     ${ProjDirPath}/../../../../../../../components/phy/mdio/enet
     ${ProjDirPath}/../../../../../../../components/phy/device/phyksz8081
     ${ProjDirPath}/../../../../../../../components/phy/device/phyrtl8211f
+    ${ProjDirPath}/../../../../../../../components/phy/device/phydp83867ir
     ${ProjDirPath}/../../../../../../../middleware/lwip
     ${ProjDirPath}/../../../../../../../middleware
     ${ProjDirPath}/../../../../../../../components/phy
@@ -75,6 +76,8 @@ include(driver_mdio-enet_MIMXRT1176_cm7)
 include(driver_phy-device-ksz8081_MIMXRT1176_cm7)
 
 include(driver_phy-device-rtl8211f_MIMXRT1176_cm7)
+
+include(driver_phy-device-dp83867ir_MIMXRT1176_cm7)
 
 include(middleware_lwip_apps_lwiperf_MIMXRT1176_cm7)
 
